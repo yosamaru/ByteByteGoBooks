@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="https://bytebytego.com/_next/static/media/logo.6b253cce.svg" alt="ByteByteGo" width="280"/>
-</p>
-
 <h1 align="center">ByteByteGo Books Collection</h1>
 
 <p align="center">
