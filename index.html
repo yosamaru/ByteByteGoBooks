@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="浏览 GitHub 仓库中的全部 HTML 章节，按书籍分组并快速搜索。">
+  <title>在线阅读目录 · interview-book</title>
+  <style>
+    :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; color-scheme: light dark; --bg:#f6f8fb; --panel:#fff; --text:#182538; --muted:#65758a; --border:#e2e8f0; --accent:#225ce8; --hover:#edf3ff; --shadow:0 8px 30px rgba(31,49,78,.05) }
+    * { box-sizing: border-box }
+    body { margin:0; background:var(--bg); color:var(--text); line-height:1.55 }
+    .wrap { max-width:1040px; padding:38px 22px 90px; margin:auto }
+    header { padding:12px 0 26px }
+    .eyebrow { text-transform:uppercase; font-size:12px; font-weight:700; letter-spacing:.12em; color:var(--accent) }
+    h1 { font-size:clamp(30px,5vw,44px); line-height:1.2; margin:10px 0 }
+    .lead { color:var(--muted); margin:10px 0 0; font-size:15px }
+    .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:24px 0 26px }
+    .search { flex:1 1 280px; width:100%; min-width:180px; appearance:none; border:1px solid var(--border); padding:14px 18px; background:var(--panel); color:var(--text); border-radius:12px; font-size:15px; outline:none; box-shadow:var(--shadow) }
+    .search:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(34,92,232,.12) }
+    .stat { font-size:13px; color:var(--muted); white-space:nowrap }
+    .group { background:var(--panel); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); margin:16px 0; overflow:hidden }
+    .group summary { list-style:none; cursor:pointer; padding:19px 22px; display:flex; align-items:center; gap:12px; font-weight:700; font-size:18px }
+    .group summary::-webkit-details-marker { display:none }
+    .group summary:hover { background:var(--hover) }
+    .chevron { font-size:12px; color:var(--muted); transition:transform .15s }
+    .group[open] .chevron { transform:rotate(90deg) }
+    .count { margin-left:auto; font-size:12px; border:1px solid var(--border); border-radius:999px; padding:2px 10px; color:var(--muted); font-weight:500 }
+    .items { border-top:1px solid var(--border); padding:8px 13px 13px }
+    .entry { display:flex; align-items:center; gap:14px; padding:11px 12px; border-radius:9px; text-decoration:none; color:var(--text) }
+    .entry:hover,.entry:focus-visible { background:var(--hover); color:var(--accent) }
+    .entry .number { width:34px; flex:0 0 34px; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums }
+    .entry .label { flex:1; min-width:0; overflow-wrap:anywhere }
+    .entry .external { color:var(--muted); font-size:14px }
+    .status { padding:20px 22px; background:var(--panel); border:1px solid var(--border); border-radius:12px; color:var(--muted) }
+    .status.error { color:#b42318 }
+    .status a, footer a { color:var(--accent) }
+    footer { margin-top:36px; color:var(--muted); font-size:13px }
+    [hidden] { display:none !important }
+    @media (max-width:600px) { .wrap { padding:22px 14px 55px } .group summary { padding:16px } .items { padding:7px } .entry { gap:8px; padding:11px 7px } }
+    @media (prefers-color-scheme:dark) { :root { --bg:#0b111a; --panel:#141c27; --text:#e9eef6; --muted:#a0aec0; --border:#2b3748; --accent:#8cb4ff; --hover:#202e42; --shadow:none } .status.error { color:#ff9f96 } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div class="eyebrow">INTERVIEW BOOK · GITHUB PAGES</div>
+      <h1>📚 在线阅读目录</h1>
+      <p class="lead">按书籍浏览全部 HTML 章节。点击章节即可阅读渲染后的页面，无需再手动拼接网址。</p>
+    </header>
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="搜索书名、章节名或文件路径…" aria-label="搜索章节" autocomplete="off">
+      <span id="stats" class="stat" aria-live="polite">正在读取目录…</span>
+    </div>
+    <div id="status" class="status" role="status">正在从 GitHub 获取 HTML 文件目录，请稍候…</div>
+    <div id="catalog" aria-label="HTML 章节目录"></div>
+    <footer>
+      点击章节将在新标签页打开，目录会一直保留。文件目录来自
+      <a href="https://github.com/yosamaru/interview-book" target="_blank" rel="noopener noreferrer">GitHub 仓库</a>；新增或删除章节后，刷新本页面即可更新。
+      <p>提醒：GitHub Pages 是公开网站。请确认你有权公开发布相应内容。</p>
+    </footer>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      const OWNER = "yosamaru";
+      const REPO = "interview-book";
+      const BRANCH = "main";
+      const API = `https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${BRANCH}?recursive=1`;
+      const bookNames = {
+        "system-design-interview": "系统设计面试 · System Design Interview",
+        "genai-system-design-interview": "生成式 AI 系统设计面试",
+        "machine-learning-system-design-interview": "机器学习系统设计面试",
+        "mobile-system-design-interview": "移动端系统设计面试",
+        "object-oriented-design-interview": "面向对象设计面试",
+        "coding-patterns": "编码面试模式 · Coding Patterns",
+        "tech-resume": "技术简历 · How to Write a Good Resume"
+      };
+      const priority = Object.keys(bookNames);
+      const catalog = document.getElementById("catalog");
+      const status = document.getElementById("status");
+      const search = document.getElementById("search");
+      const stats = document.getElementById("stats");
+      let allGroups = [];
+
+      function filenameLabel(path) {
+        const name = path.split("/").pop().replace(/\.html?$/i, "");
+        return name.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+      }
+      function bookId(path) {
+        const p = path.split("/");
+        return p[0] === "html" && p[1] ? p[1] : (p.length > 1 ? p[0] : "其他章节");
+      }
+      function titleFor(id) {
+        return bookNames[id] || id.replace(/[-_]/g, " ");
+      }
+      function encodedPath(path) {
+        return path.split("/").map(encodeURIComponent).join("/");
+      }
+      function render(term = "") {
+        catalog.replaceChildren();
+        const q = term.trim().toLocaleLowerCase();
+        let shown = 0, books = 0;
+        for (const group of allGroups) {
+          const matches = group.paths.filter(path =>
+            !q || `${path} ${titleFor(group.id)} ${filenameLabel(path)}`.toLocaleLowerCase().includes(q)
+          );
+          if (!matches.length) continue;
+          shown += matches.length; books++;
+          const section = document.createElement("details");
+          section.className = "group";
+          section.open = true;
+          const head = document.createElement("summary");
+          const arrow = document.createElement("span"); arrow.className = "chevron"; arrow.textContent = "▶";
+          const title = document.createElement("span"); title.textContent = titleFor(group.id);
+          const count = document.createElement("span"); count.className = "count"; count.textContent = `${matches.length} 篇`;
+          head.append(arrow, title, count);
+          const items = document.createElement("div"); items.className = "items";
+          matches.forEach(path => {
+            const a = document.createElement("a");
+            a.className = "entry";
+            a.href = `./${encodedPath(path)}`;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.title = path;
+            const num = document.createElement("span"); num.className = "number";
+            const file = path.split("/").pop();
+            num.textContent = /^\d{1,3}(?=[-_])/.exec(file)?.[0] || "HTML";
+            const label = document.createElement("span"); label.className = "label";
+            const pretty = filenameLabel(path);
+            label.textContent = pretty;
+            const external = document.createElement("span"); external.className = "external"; external.textContent = "↗";
+            a.append(num, label, external);
+            items.append(a);
+          });
+          section.append(head, items);
+          catalog.append(section);
+        }
+        stats.textContent = `${books} 个分类 · ${shown} 篇 HTML`;
+        if (q && !shown) {
+          status.textContent = "没有找到匹配的章节，请换个关键词。";
+          status.hidden = false;
+        } else {
+          status.hidden = true;
+        }
+      }
+      async function load() {
+        try {
+          const response = await fetch(API, {headers: {"Accept": "application/vnd.github+json"}});
+          if (!response.ok) throw new Error(`GitHub API 返回 HTTP ${response.status}`);
+          const data = await response.json();
+          if (data.truncated) throw new Error("仓库文件列表过大，GitHub API 返回了不完整的目录");
+          const paths = data.tree
+            .filter(item => item.type === "blob" && /\.html?$/i.test(item.path) && item.path !== "index.html")
+            .map(item => item.path)
+            .sort((a, b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"}));
+          if (!paths.length) throw new Error("未发现 HTML 文件");
+          const groups = new Map();
+          paths.forEach(path => {
+            const id = bookId(path);
+            if (!groups.has(id)) groups.set(id, []);
+            groups.get(id).push(path);
+          });
+          allGroups = Array.from(groups, ([id, files]) => ({id, paths:files}));
+          allGroups.sort((a,b) => {
+            const ai = priority.indexOf(a.id), bi = priority.indexOf(b.id);
+            if (ai >= 0 && bi >= 0) return ai-bi;
+            if (ai >= 0) return -1;
+            if (bi >= 0) return 1;
+            return a.id.localeCompare(b.id);
+          });
+          render(search.value);
+        } catch (err) {
+          status.className = "status error";
+          status.textContent = `目录加载失败：${err.message}。请刷新重试。此目录依赖公开仓库的 GitHub API；如果仓库改为私有，则需要改用构建时生成的静态目录。`;
+          stats.textContent = "加载失败";
+        }
+      }
+      search.addEventListener("input", () => {
+        if (allGroups.length) render(search.value);
+      });
+      load();
+    })();
+  </script>
+</body>
+</html>
